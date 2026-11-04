@@ -1,0 +1,10 @@
+# Build context minimal: hanya file yang dibutuhkan image rag
+*
+!rag_engine.py
+!app/**
+!knowledge-base/**
+!doc/PANDUAN_PENGGUNA.md
+!doc/JOBDESK.md
+!doc/LAPORAN_STRATEGI_TRAINING_DUOAI.md
+!duoai_training_dataset.jsonl
+!.rag_index_cache.json

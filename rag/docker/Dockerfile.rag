@@ -1,0 +1,16 @@
+# Layanan RAG DuoAI — 100% stdlib Python, TANPA dependensi pip
+FROM python:3.9-slim
+WORKDIR /app
+COPY rag_engine.py .
+COPY app ./app
+COPY .rag_index_cache.json* ./
+COPY knowledge-base ./knowledge-base
+COPY doc/PANDUAN_PENGGUNA.md doc/JOBDESK.md doc/LAPORAN_STRATEGI_TRAINING_DUOAI.md duoai_training_dataset.jsonl ./
+ENV PYTHONUNBUFFERED=1 \
+    OLLAMA_HOST=http://ollama:11434 \
+    EMBED_MODEL=nomic-embed-text \
+    RAG_TOP_K=5 \
+    OPENSEARCH_INDEX=nala-academic-docs \
+    RAG_PORT=8000
+EXPOSE 8000
+CMD ["python3", "rag_engine.py", "--serve"]
