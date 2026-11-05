@@ -106,6 +106,15 @@
           </button>
         </div>
 
+        <!-- Mode Cakupan Pengetahuan Switch (Mobile) -->
+        <div class="ai-mode-bar" style="padding: 6px 14px; background: rgba(99,102,241,0.06); border-bottom: 1px solid var(--border-light, #e2e8f0); display: flex; align-items: center; justify-content: space-between; font-size: 11px;">
+          <span style="font-weight: 600; color: #475569;">Cakupan AI:</span>
+          <button type="button" id="duoai-mobile-mode-btn" onclick="DesktopShell.toggleAiMode()" style="padding: 3px 9px; border-radius: 999px; border: 1px solid #cbd5e1; background: #ffffff; cursor: pointer; font-size: 11px; font-weight: 600; display: inline-flex; align-items: center; gap: 5px;">
+            <span id="duoai-mobile-mode-dot" style="width: 7px; height: 7px; border-radius: 50%; background: #10b981;"></span>
+            <span id="duoai-mobile-mode-text">Full Knowledge Base</span>
+          </button>
+        </div>
+
         <div id="ai-chat-messages" class="ai-messages-container"></div>
 
         <div class="ai-quick-prompts-wrapper">
@@ -155,6 +164,14 @@
             </div>
           </div>
           <button type="button" class="icon-btn" onclick="DesktopShell.toggleAi()"><span class="material-symbols-rounded">close</span></button>
+        </div>
+        <!-- Mode Cakupan Pengetahuan Switch (Desktop) -->
+        <div class="desk-ai-mode-bar" style="padding: 6px 14px; background: rgba(99,102,241,0.06); border-bottom: 1px solid var(--border-light, #e2e8f0); display: flex; align-items: center; justify-content: space-between; font-size: 11px;">
+          <span style="font-weight: 600; color: #475569;">Cakupan AI:</span>
+          <button type="button" id="duoai-mode-btn" onclick="DesktopShell.toggleAiMode()" style="padding: 3px 9px; border-radius: 999px; border: 1px solid #cbd5e1; background: #ffffff; cursor: pointer; font-size: 11px; font-weight: 600; display: inline-flex; align-items: center; gap: 5px; transition: all 0.2s ease;">
+            <span id="duoai-mode-dot" style="width: 7px; height: 7px; border-radius: 50%; background: #10b981;"></span>
+            <span id="duoai-mode-text">Full Knowledge Base</span>
+          </button>
         </div>
         <div id="desk-ai-messages" class="desk-ai-messages-scroll"></div>
         <div class="desk-ai-prompts-bar">

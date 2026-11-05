@@ -374,8 +374,39 @@
     this.syncAiPanel();
   };
 
+  DesktopShell.isAppOnlyMode = function() {
+    return localStorage.getItem('duoai_app_only') === 'true';
+  };
+
+  DesktopShell.toggleAiMode = function() {
+    const next = !this.isAppOnlyMode();
+    localStorage.setItem('duoai_app_only', next ? 'true' : 'false');
+    this.syncAiModeUI();
+    const modeName = next ? 'Khusus DuoWallet' : 'Full Knowledge Base';
+    if (window.UI && window.UI.showToast) {
+      UI.showToast(`Mode AI diubah: ${modeName}`);
+    }
+  };
+
+  DesktopShell.syncAiModeUI = function() {
+    const isAppOnly = this.isAppOnlyMode();
+    const label = isAppOnly ? 'Khusus DuoWallet' : 'Full Knowledge Base';
+    const color = isAppOnly ? '#6366f1' : '#10b981';
+
+    const textDesk = document.getElementById('duoai-mode-text');
+    const dotDesk = document.getElementById('duoai-mode-dot');
+    if (textDesk) textDesk.textContent = label;
+    if (dotDesk) dotDesk.style.background = color;
+
+    const textMob = document.getElementById('duoai-mobile-mode-text');
+    const dotMob = document.getElementById('duoai-mobile-mode-dot');
+    if (textMob) textMob.textContent = label;
+    if (dotMob) dotMob.style.background = color;
+  };
+
   DesktopShell.syncAiPanel = function() {
     const p = document.getElementById('desktop-ai-panel');
+    this.syncAiModeUI();
     if (!p) return;
     if (DuoState.isAiOpen) {
       p.classList.add('open');

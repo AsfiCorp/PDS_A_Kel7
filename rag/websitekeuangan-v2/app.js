@@ -920,6 +920,7 @@
         return;
       }
       DuoState.isAiOpen = true;
+      if (window.DesktopShell && DesktopShell.syncAiModeUI) DesktopShell.syncAiModeUI();
       const drawer = document.getElementById('ai-chat-drawer');
       const backdrop = document.getElementById('ai-chat-backdrop');
       const fab = document.getElementById('ai-fab-btn');
@@ -1598,6 +1599,15 @@
       const defaultTunnel = '';
       const ollamaEndpoint = (localStorage.getItem('duoai_endpoint') || defaultTunnel).replace(/\/+$/, '');
 
+      // Ambil mode cakupan pengetahuan AI (default: Full Knowledge Base)
+      const isAppOnly = localStorage.getItem('duoai_app_only') === 'true';
+
+      // Pre-guard mode Khusus DuoWallet: tolak segera topik di luar domain aplikasi
+      const isOffDomainForAppOnly = /(cuti|krs|presiden|kampus|kuliah|dosen|semester|dekan|kaprodi|skripsi|rektor|sks)/i.test(q);
+      if (isAppOnly && isOffDomainForAppOnly) {
+        return 'Maaf, saat ini saya berada dalam Mode Khusus DuoWallet, sehingga hanya dapat melayani pengelolaan keuangan dan fitur aplikasi DuoWallet. Silakan alihkan ke Mode Full Knowledge Base jika ingin menanyakan dokumen lainnya.';
+      }
+
       const ctrl = new AbortController();
 
       // 0. RAG: ambil konteks dokumentasi DuoWallet & knowledge base (timeout 15s)
@@ -1605,7 +1615,10 @@
       try {
         const rCtrl = new AbortController();
         const rTid = setTimeout(() => rCtrl.abort(), 15000);
-        const rRes = await fetch(`${ollamaEndpoint}/rag/query`, {
+        const ragEndpoint = (ollamaEndpoint && !ollamaEndpoint.includes('localhost:11434'))
+          ? `${ollamaEndpoint}/rag/query`
+          : '/rag/query';
+        const rRes = await fetch(ragEndpoint, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ query: userQuery, top_k: 5 }),
@@ -1614,12 +1627,27 @@
         clearTimeout(rTid);
         if (rRes.ok) {
           const rData = await rRes.json();
-          if (rData.context) ragContext = String(rData.context);
+          if (isAppOnly) {
+            // Dalam Mode Khusus DuoWallet: filter ketat agar HANYA dokumen duowallet-panduan.md yang masuk ke prompt
+            if (Array.isArray(rData.sources)) {
+              const hasAppHit = rData.sources.some(s => (s.source || '').includes('duowallet'));
+              if (hasAppHit && rData.context) {
+                const parts = rData.context.split('\n\n---\n\n').filter(p => !p.toLowerCase().includes('cuti') && !p.toLowerCase().includes('krs') && !p.toLowerCase().includes('presiden'));
+                ragContext = parts.join('\n\n---\n\n');
+              } else {
+                ragContext = '';
+              }
+            }
+          } else {
+            if (rData.context) ragContext = String(rData.context);
+          }
         }
       } catch (e) { /* RAG offline / bukan same-origin: abaikan */ }
 
       try {
-        let sysPrompt = `Anda adalah DuoAI, asisten pintar serbabisa di DuoWallet yang menguasai manajemen finansial, teknologi, dan pengetahuan umum.
+        let sysPrompt = '';
+        if (isAppOnly) {
+          sysPrompt = `Anda adalah DuoAI, asisten pintar serbabisa di aplikasi DuoWallet.
 Sesi pengguna yang sedang aktif saat ini adalah: "${currentUserName}".
 INFORMASI ANGGARAN & KEUANGAN KHUSUS ${currentUserName.toUpperCase()}:
 - Saldo Akun Pribadi ${currentUserName}: ${formatMoney(pBal)}
@@ -1629,12 +1657,36 @@ INFORMASI ANGGARAN & KEUANGAN KHUSUS ${currentUserName.toUpperCase()}:
 - Settle-up Hutang Kas: ${formatMoney(debt)}
 
 ATURAN PRIVASI & ISOLASI DATA (SANGAT KETAT):
-1. Anda HANYA diizinkan menjawab anggaran, saldo, atau pengeluaran milik "${currentUserName}" dan Kas Bersama.
-2. Jika ada pertanyaan mengenai anggaran pribadi akun "${partnerName}" atau akun orang lain, Anda HARUS MENOLAK dengan sopan karena aturan privasi finansial DuoWallet.
-3. Jika pengguna berniat mencatat transaksi, kembalikan JSON action (record_transaction / record_collab_expense / record_income).
-4. Untuk konsultasi, sapaan, atau pertanyaan umum, jawab secara ramah, lugas, dan akurat tanpa format JSON.`;
-        if (ragContext) {
-          sysPrompt += `\n\nKONTEKS PENGETAHUAN / KNOWLEDGE BASE (Gunakan informasi faktual berikut sebagai rujukan utama untuk menjawab pertanyaan tentang dokumen SOP akademik, presiden, aturan kampus, atau panduan aplikasi):\n${ragContext}`;
+1. Terkait data keuangan, Anda HANYA boleh membeberkan saldo/pengeluaran milik "${currentUserName}" dan Kas Bersama (DILARANG membocorkan rincian saldo pribadi "${partnerName}").
+2. Jika pengguna berniat mencatat transaksi atau patungan, kembalikan JSON action (record_transaction / record_collab_expense / record_income).
+
+MODE OPERASIONAL: MODE KHUSUS DUOWALLET (APP ONLY).
+- Anda HANYA diizinkan menjawab pertanyaan seputar fitur, keuangan, dan panduan DuoWallet.
+- Jika pengguna menanyakan hal lain (seperti SOP akademik kampus, KRS, cuti kuliah, riwayat presiden, atau topik umum di luar DuoWallet), Anda WAJIB menolak dengan sopan:
+  "Maaf, saat ini saya berada dalam Mode Khusus DuoWallet, sehingga hanya dapat melayani pengelolaan keuangan dan fitur aplikasi DuoWallet. Silakan alihkan ke Mode Full Knowledge Base jika ingin menanyakan dokumen lainnya."`;
+          if (ragContext) {
+            sysPrompt += `\n\nKONTEKS PANDUAN DUOWALLET:\n${ragContext}`;
+          }
+        } else {
+          sysPrompt = `Anda adalah DuoAI, asisten pintar serbabisa di aplikasi DuoWallet yang menguasai manajemen finansial, teknologi, dan seluruh pengetahuan resmi di knowledge base.
+Sesi pengguna yang sedang aktif saat ini adalah: "${currentUserName}".
+INFORMASI ANGGARAN & KEUANGAN KHUSUS ${currentUserName.toUpperCase()}:
+- Saldo Akun Pribadi ${currentUserName}: ${formatMoney(pBal)}
+- Anggaran Terpakai ${currentUserName}: ${formatMoney(spentBudget)}
+- Kas Bersama (Collab Space): ${formatMoney(cBal)}
+- Safe-to-Spend ${currentUserName}: ${formatMoney(safeDaily)}/hari (${daysLeft} hari tersisa bulan ini)
+- Settle-up Hutang Kas: ${formatMoney(debt)}
+
+ATURAN PRIVASI & ISOLASI DATA (SANGAT KETAT):
+1. Terkait data keuangan, Anda HANYA boleh membeberkan saldo/pengeluaran milik "${currentUserName}" dan Kas Bersama (DILARANG membocorkan rincian saldo pribadi "${partnerName}").
+2. Jika pengguna berniat mencatat transaksi atau patungan, kembalikan JSON action (record_transaction / record_collab_expense / record_income).
+3. Anda mengacu pada ATURAN BAKU (rules.md): Anda melayani pengelolaan DuoWallet DAN seluruh dokumen resmi di Knowledge Base (seperti SOP pendaftaran KRS online, SOP permohonan cuti akademik, riwayat Presiden RI, dll.).
+4. Untuk pertanyaan tentang SOP kampus, akademik, atau presiden: Jawablah secara ramah, lengkap, terstruktur, dan akurat berdasarkan KONTEKS PENGETAHUAN di bawah. JANGAN tolak pertanyaan akademik jika dokumennya tersedia di konteks!
+5. Jika pengguna bertanya hal di luar DuoWallet dan TIDAK ADA di konteks knowledge base (misal: resep masakan acak, gosip selebriti, ramalan bintang), tolak dengan sopan sesuai rules.md:
+   "Maaf, sebagai asisten DuoAI, saya difokuskan untuk membantu pengelolaan keuangan DuoWallet serta informasi resmi yang tersedia di knowledge base kami. Ada hal seputar keuangan atau panduan aplikasi yang bisa saya bantu?"`;
+          if (ragContext) {
+            sysPrompt += `\n\nKONTEKS PENGETAHUAN / KNOWLEDGE BASE (Gunakan informasi faktual berikut sebagai rujukan utama):\n${ragContext}`;
+          }
         }
 
         // Timeout 120s untuk memberi waktu proses inferensi model lokal
@@ -1850,6 +1902,9 @@ ATURAN PRIVASI & ISOLASI DATA (SANGAT KETAT):
       }
 
       if (ragContext) {
+        if (isAppOnly && (q.includes('krs') || q.includes('cuti') || q.includes('presiden') || q.includes('kampus'))) {
+          return 'Maaf, saat ini saya berada dalam Mode Khusus DuoWallet, sehingga hanya dapat melayani pengelolaan keuangan dan fitur aplikasi DuoWallet. Silakan alihkan ke Mode Full Knowledge Base jika ingin menanyakan dokumen lainnya.';
+        }
         // Jika model Ollama lambat/offline namun RAG OpenSearch berhasil menemukan konteks
         const firstBlock = ragContext.split('---')[0].trim();
         return firstBlock || ragContext;
